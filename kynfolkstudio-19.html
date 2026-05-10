@@ -1,0 +1,1859 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kynfolk — Listing Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=DM+Serif+Display:ital@0;1&family=Josefin+Sans:wght@300;400;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+
+/* ── RESET ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #F5F2ED;
+  --surface:    #FAFAF8;
+  --surface2:   #F0EDE7;
+  --border:     rgba(60,50,35,0.1);
+  --border2:    rgba(60,50,35,0.2);
+  --text:       #2C2620;
+  --text-2:     #7A6E64;
+  --text-3:     #B8AFA5;
+  --gold:       #B8924A;
+  --gold-light: rgba(184,146,74,0.1);
+  --gold-mid:   rgba(184,146,74,0.18);
+  --radius:     10px;
+  --radius-sm:  6px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── LAYOUT ── */
+.app {
+  display: grid;
+  grid-template-columns: 1fr 368px;
+  grid-template-rows: 56px 1fr;
+  grid-template-areas:
+    "header header"
+    "canvas panel";
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── HEADER ── */
+header {
+  grid-area: header;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.brand-logo {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.brand-logo-name {
+  font-family: 'Josefin Sans', sans-serif;
+  font-weight: 300;
+  font-size: 16px;
+  color: var(--text);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.brand-logo-tag {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.ratio-bar {
+  display: flex;
+  gap: 5px;
+}
+
+.ratio-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 13px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ratio-btn:hover { color: var(--text); border-color: var(--border2); }
+
+.ratio-btn.active {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-light);
+}
+
+.ratio-icon {
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* ── CANVAS AREA ── */
+.canvas-area {
+  grid-area: canvas;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 28px;
+  overflow: hidden;
+}
+
+/* Outer: handles the visual scale + shadow, transitions smoothly */
+.canvas-scaler {
+  transform-origin: center center;
+  transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 6px;
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.06),
+    0 8px 24px rgba(0,0,0,0.12),
+    0 24px 64px rgba(0,0,0,0.14);
+}
+
+/* Inner: always fixed at canonical size — elements never reposition */
+.canvas-wrap {
+  position: relative;
+  background: transparent;
+  overflow: hidden;
+  border-radius: 6px;
+  /* Size set once in JS at init, never changes */
+  width: 400px;
+  height: 500px;
+}
+
+#bg-photo {
+  position: absolute;
+  top: -1px; left: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  object-fit: cover;
+  transition: filter 0.4s ease;
+}
+
+.overlay-top {
+  position: absolute; top: 0; left: 0; right: 0; height: 40%;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.48) 0%, transparent 100%);
+  pointer-events: none; z-index: 1;
+}
+
+.overlay-bottom {
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 1;
+  transition: background 0.4s ease;
+}
+
+#brand-mark {
+  position: absolute; z-index: 10;
+  color: rgba(255,255,255,0.85);
+  pointer-events: none;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+#info-block {
+  position: absolute; z-index: 10;
+  transition: all 0.2s;
+}
+
+.listing-cluster {
+  font-family: 'Inter', sans-serif;
+  font-size: 18px; font-weight: 600;
+  letter-spacing: 0.18em; color: #fff;
+  text-transform: uppercase; margin-bottom: 5px;
+}
+
+.listing-locnote {
+  font-size: 9px; font-weight: 400;
+  letter-spacing: 0.09em; color: rgba(255,255,255,0.52);
+  text-transform: uppercase; margin-bottom: 9px;
+}
+
+.listing-specs {
+  font-size: 9px; font-weight: 400;
+  letter-spacing: 0.1em; color: rgba(255,255,255,0.62);
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin-bottom: 3px;
+}
+
+.listing-divider { display: none; align-items: center; }
+
+.listing-price-row { display: flex; align-items: baseline; gap: 6px; }
+
+.listing-price-label {
+  font-size: 10px; font-weight: 400;
+  color: rgba(255,255,255,0.55); letter-spacing: 0.06em;
+}
+
+.listing-price-value { font-size: 30px; font-weight: 700; line-height: 1; }
+
+.listing-pill {
+  position: absolute; z-index: 10;
+  background: rgba(255,255,255,0.1);
+  border: 0.5px solid rgba(255,255,255,0.22);
+  border-radius: 20px; padding: 5px 13px;
+  font-size: 8.5px; font-weight: 500;
+  letter-spacing: 0.13em; color: rgba(255,255,255,0.85);
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+/* ── PANEL ── */
+.panel {
+  grid-area: panel;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--surface);
+}
+
+.panel-tab {
+  flex: 1;
+  padding: 15px 4px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-3);
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: -1px;
+}
+
+.panel-tab:hover { color: var(--text-2); }
+
+.panel-tab.active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 20px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface2) transparent;
+}
+
+.panel-body::-webkit-scrollbar { width: 3px; }
+.panel-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ── SECTIONS ── */
+.section { margin-bottom: 24px; }
+
+.section-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+
+hr.sep {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 20px 0;
+}
+
+/* ── FIELDS ── */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.field-row.full { grid-template-columns: 1fr; }
+
+.field-wrap { display: flex; flex-direction: column; gap: 4px; }
+
+.field-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-2);
+  letter-spacing: 0.02em;
+}
+
+.field-label-sub { color: var(--text-3); font-weight: 400; }
+
+input[type="text"],
+input[type="number"] {
+  width: 100%;
+  padding: 8px 11px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+input:focus { border-color: var(--gold); }
+input::placeholder { color: var(--text-3); }
+
+/* ── UPLOAD ── */
+#file-input { display: none; }
+
+.upload-area {
+  width: 100%;
+  padding: 20px;
+  border: 1.5px dashed var(--border2);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-area:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-light);
+}
+
+.upload-icon { width: 24px; height: 24px; opacity: 0.5; }
+
+/* ── PRESET GRID ── */
+.preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.preset-opt {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  cursor: pointer;
+  background: transparent;
+  transition: border-color 0.15s;
+  text-align: left;
+}
+
+.preset-opt:hover { border-color: var(--border2); }
+.preset-opt.active { border-color: var(--gold); }
+
+.preset-thumb {
+  height: 52px;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  padding: 6px 8px;
+}
+
+.pth-bg { position: absolute; inset: 0; }
+.pth-ov { position: absolute; inset: 0; }
+
+.pth-text {
+  position: relative; z-index: 2;
+  font-size: 7.5px; font-weight: 700;
+  letter-spacing: 0.1em; color: #fff;
+  text-transform: uppercase; line-height: 1.4;
+}
+
+.preset-name {
+  font-size: 10px;
+  color: var(--text-2);
+  padding: 6px 8px;
+  background: var(--surface);
+}
+
+/* ── FONT GRID ── */
+.font-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.font-opt {
+  padding: 12px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+
+.font-opt:hover { border-color: var(--border2); }
+.font-opt.active { border-color: var(--gold); background: var(--gold-light); }
+
+.font-preview { font-size: 16px; color: var(--text); margin-bottom: 4px; }
+.font-name { font-size: 9px; color: var(--text-3); font-family: 'Inter', sans-serif; letter-spacing: 0.04em; }
+
+/* ── COLOR THEMES ── */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 6px;
+}
+
+.theme-opt {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 2px solid transparent;
+  transition: border-color 0.15s;
+}
+
+.theme-opt:hover { border-color: var(--border2); }
+.theme-opt.active { border-color: var(--gold); }
+
+.theme-swatch {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface2);
+}
+
+.theme-dot { width: 14px; height: 14px; border-radius: 50%; }
+
+.theme-label {
+  font-size: 8.5px;
+  color: var(--text-3);
+  font-family: 'Inter', sans-serif;
+  text-align: center;
+  padding: 4px 2px;
+  background: var(--surface);
+}
+
+/* ── DIVIDER SELECTOR ── */
+.divider-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.divider-opt {
+  padding: 14px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s;
+}
+.divider-opt:hover { border-color: var(--border2); }
+.divider-opt.active { border-color: var(--gold); background: var(--gold-light); }
+.divider-preview {
+  width: 52px;
+  height: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.divider-opt-name {
+  font-size: 9px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ── CAROUSEL ── */
+.carousel-strip {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.carousel-thumb {
+  position: relative;
+  width: 56px; height: 56px;
+  border-radius: 5px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  flex-shrink: 0;
+  transition: border-color 0.15s;
+}
+.carousel-thumb.active { border-color: var(--gold); }
+.carousel-thumb img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.carousel-thumb .thumb-del {
+  position: absolute; top: 2px; right: 2px;
+  width: 16px; height: 16px;
+  background: rgba(0,0,0,0.55);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s;
+  border: none; cursor: pointer; padding: 0;
+  line-height: 1;
+}
+.carousel-thumb:hover .thumb-del { opacity: 1; }
+.carousel-thumb .thumb-num {
+  position: absolute; bottom: 2px; left: 3px;
+  font-size: 8px; color: rgba(255,255,255,0.8);
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+.carousel-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.carousel-nav-btn {
+  width: 28px; height: 28px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.carousel-nav-btn:hover { border-color: var(--gold); color: var(--gold); }
+.carousel-nav-btn:disabled { opacity: 0.3; cursor: default; }
+.carousel-counter {
+  font-size: 11px;
+  color: var(--text-2);
+  font-family: 'Inter', sans-serif;
+  min-width: 40px;
+  text-align: center;
+}
+.export-all-btn {
+  flex: 1;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-sm);
+  color: var(--gold);
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.export-all-btn:hover { background: var(--gold-light); }
+.export-all-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ── OPACITY SLIDER ── */
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.slider-row input[type=range] {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border2);
+  outline: none;
+  border: none;
+  padding: 0;
+}
+.slider-row input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--gold);
+  cursor: pointer;
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.slider-val {
+  font-size: 11px;
+  color: var(--text-2);
+  min-width: 30px;
+  text-align: right;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ── RESET BUTTON ── */
+.reset-btn {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-top: 8px;
+}
+.reset-btn:hover { border-color: #c0392b; color: #c0392b; }
+
+/* ── POSITION ── */
+.pos-grid {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 4px;
+  margin-bottom: 0;
+}
+
+.pos-btn {
+  padding: 8px 4px;
+  font-size: 9.5px;
+  font-weight: 400;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  text-align: center;
+  letter-spacing: 0.02em;
+  transition: all 0.15s;
+}
+
+.pos-btn:hover { border-color: var(--border2); color: var(--text-2); }
+.pos-btn.active { border-color: var(--gold); color: var(--gold); background: var(--gold-light); }
+
+/* ── SIZE CONTROL ── */
+.size-control { display: flex; align-items: center; gap: 12px; }
+
+.size-btn {
+  width: 32px; height: 32px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  font-family: 'Inter', sans-serif;
+  line-height: 1;
+}
+
+.size-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+.size-val {
+  font-size: 12px;
+  color: var(--text-2);
+  min-width: 36px;
+  text-align: center;
+}
+
+/* ── FOOTER ── */
+.panel-footer {
+  padding: 16px 20px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.download-btn {
+  width: 100%;
+  padding: 13px;
+  background: var(--gold);
+  border: none;
+  border-radius: var(--radius);
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.download-btn:hover { opacity: 0.88; }
+
+/* ── IMAGE DRAG / ZOOM ── */
+#bg-photo {
+  transform-origin: center center;
+  will-change: transform;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.canvas-wrap.draggable { cursor: grab; }
+.canvas-wrap.dragging  { cursor: grabbing; }
+
+.image-edit-hint {
+  font-size: 10px;
+  color: var(--text-3);
+  margin-top: 8px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  font-style: italic;
+}
+
+.zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.zoom-row label {
+  font-size: 10px;
+  color: var(--text-2);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  min-width: 42px;
+}
+.zoom-row input[type=range] {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border2);
+  outline: none;
+  border: none;
+  padding: 0;
+}
+.zoom-row input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--gold);
+  cursor: pointer;
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.zoom-row .zoom-reset {
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 10px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-family: 'Inter',sans-serif;
+}
+.zoom-row .zoom-reset:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ── MOBILE RESPONSIVE ── */
+.ratio-bar {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.ratio-bar::-webkit-scrollbar { display: none; }
+.ratio-btn { flex-shrink: 0; touch-action: manipulation; }
+.panel-tab, .pos-btn, .preset-opt, .font-opt, .theme-opt,
+.divider-opt, .size-btn, .carousel-nav-btn, .download-btn,
+.upload-area, .reset-btn, .export-all-btn, .zoom-reset {
+  touch-action: manipulation;
+}
+
+/* Touch devices (phones/tablets) — even if "Request Desktop" forces a wide
+   viewport, fall back to the stacked mobile layout because the physical
+   screen is still small and panel scrolling is essential. */
+@media (max-width: 880px), (pointer: coarse) and (max-width: 1280px) {
+  html, body { font-size: 13px; height: auto; min-height: 100%; }
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "header"
+      "canvas"
+      "panel";
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  header {
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 14px;
+    height: auto;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: blur(8px);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+  }
+  .ratio-bar {
+    width: 100%;
+    padding-bottom: 4px;
+    justify-content: flex-start;
+  }
+  .canvas-area {
+    padding: 18px 14px;
+    min-height: 60vh;
+  }
+  .panel {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    max-height: none;
+    overflow: visible;
+  }
+  .panel-body {
+    overflow: visible;
+    padding: 18px 16px;
+  }
+  .panel-tabs { position: sticky; top: 0; z-index: 5; }
+  .panel-footer { position: sticky; bottom: 0; }
+  .preset-grid, .font-grid, .divider-grid { grid-template-columns: 1fr 1fr; }
+  .theme-grid { grid-template-columns: repeat(4,1fr); }
+  .pos-grid .pos-btn { padding: 10px 4px; font-size: 10px; }
+  .size-btn { width: 36px; height: 36px; }
+  .carousel-thumb { width: 60px; height: 60px; }
+  .download-btn { padding: 14px; font-size: 12px; }
+}
+
+@media (max-width: 420px) {
+  .brand-logo-name { font-size: 14px; letter-spacing: 0.22em; }
+  .ratio-btn { padding: 6px 10px; font-size: 10px; }
+  .preset-grid, .font-grid, .divider-grid, .theme-grid { grid-template-columns: 1fr 1fr; }
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="brand-logo">
+      <span class="brand-logo-name">KYNFOLK STUDIO</span>
+    </div>
+    <div class="ratio-bar">
+      <button class="ratio-btn" onclick="setRatio('916',this)">
+        <span class="ratio-icon" style="width:10px;height:18px"></span>9:16
+      </button>
+      <button class="ratio-btn active" onclick="setRatio('45',this)">
+        <span class="ratio-icon" style="width:12px;height:15px"></span>4:5
+      </button>
+      <button class="ratio-btn" onclick="setRatio('34',this)">
+        <span class="ratio-icon" style="width:12px;height:16px"></span>3:4
+      </button>
+      <button class="ratio-btn" onclick="setRatio('11',this)">
+        <span class="ratio-icon" style="width:14px;height:14px"></span>1:1
+      </button>
+      <button class="ratio-btn" onclick="setRatio('169',this)">
+        <span class="ratio-icon" style="width:18px;height:10px"></span>16:9
+      </button>
+    </div>
+  </header>
+
+  <!-- CANVAS -->
+  <div class="canvas-area">
+    <div class="canvas-scaler" id="canvas-scaler">
+    <div class="canvas-wrap" id="canvas-wrap">
+      <img id="bg-photo"
+        src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='500'%3E%3Crect width='400' height='500' fill='%23E8E4DE'/%3E%3Ctext x='200' y='248' text-anchor='middle' fill='%23B8AFA5' font-size='12' font-family='sans-serif'%3EUpload foto properti%3C/text%3E%3C/svg%3E"
+        alt="property"/>
+      <div class="overlay-top"></div>
+      <div class="overlay-bottom" id="overlay-bottom"></div>
+      <div class="listing-pill" id="loc-pill">KBP, Bandung</div>
+      <div id="info-block">
+        <div class="listing-cluster" id="preview-name">KARTAWIJAYA</div>
+        <div class="listing-locnote" id="preview-locnote" style="display:none"></div>
+        <div class="listing-specs" id="preview-specs-size">LT. 120M²  |  LB. 131M²</div>
+        <div class="listing-specs" id="preview-specs-room">BED 4</div>
+        <div class="listing-divider" id="preview-divider" style="display:none"></div>
+        <div class="listing-price-row" id="price-row">
+          <span class="listing-price-label" id="preview-pricelabel">Start</span>
+          <span class="listing-price-value" id="preview-price">2,5M</span>
+        </div>
+      </div>
+      <div id="brand-mark">Kynfolk</div>
+    </div><!-- /canvas-wrap -->
+    </div><!-- /canvas-scaler -->
+  </div><!-- /canvas-area -->
+
+  <!-- PANEL -->
+  <div class="panel">
+
+    <div class="panel-tabs">
+      <button class="panel-tab active" onclick="switchTab('detail',this)">Detail</button>
+      <button class="panel-tab" onclick="switchTab('foto',this)">Foto</button>
+      <button class="panel-tab" onclick="switchTab('style',this)">Style</button>
+      <button class="panel-tab" onclick="switchTab('layout',this)">Layout</button>
+    </div>
+
+    <div class="panel-body">
+
+      <!-- DETAIL -->
+      <div id="tab-detail" class="tab-content active">
+        <div class="section">
+          <div class="section-label">Foto properti</div>
+          <input type="file" id="file-input" accept="image/*" multiple/>
+          <button class="upload-area" onclick="document.getElementById('file-input').click()">
+            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+            </svg>
+            Upload foto <span style="color:var(--text-3);font-size:10px">(bisa pilih banyak)</span>
+          </button>
+          <!-- carousel strip -->
+          <div class="carousel-strip" id="carousel-strip"></div>
+          <!-- zoom + reset position (active photo) -->
+          <div class="zoom-row" id="zoom-row" style="display:none">
+            <label>Zoom</label>
+            <input type="range" id="zoom-slider" min="100" max="300" value="100" oninput="setPhotoZoom(this.value)"/>
+            <button class="zoom-reset" onclick="resetPhotoTransform()">Reset</button>
+          </div>
+          <div class="image-edit-hint" id="drag-hint" style="display:none">Geser foto di canvas untuk mengatur posisi</div>
+          <!-- nav + counter + export all -->
+          <div class="carousel-nav" id="carousel-nav" style="display:none">
+            <button class="carousel-nav-btn" id="nav-prev" onclick="carouselNav(-1)">‹</button>
+            <span class="carousel-counter" id="carousel-counter">1 / 1</span>
+            <button class="carousel-nav-btn" id="nav-next" onclick="carouselNav(1)">›</button>
+            <button class="export-all-btn" id="export-all-btn" onclick="exportAll()">Export Semua</button>
+          </div>
+        </div>
+
+        <hr class="sep"/>
+
+        <div class="section">
+          <div class="section-label">Informasi listing</div>
+
+          <div class="field-row full" style="margin-bottom:8px">
+            <div class="field-wrap">
+              <span class="field-label">Nama cluster</span>
+              <input type="text" id="f-name" value="Kartawijaya" oninput="update()"/>
+            </div>
+          </div>
+
+          <div class="field-row full" style="margin-bottom:8px">
+            <div class="field-wrap">
+              <span class="field-label">Catatan lokasi <span class="field-label-sub">(opsional)</span></span>
+              <input type="text" id="f-loc" placeholder="Paling depan, sebelah Mason Pine Hotel" oninput="update()"/>
+            </div>
+          </div>
+
+          <div class="field-row" style="margin-bottom:8px">
+            <div class="field-wrap"><span class="field-label">LT (m²)</span><input type="number" id="f-lt" value="120" oninput="update()"/></div>
+            <div class="field-wrap"><span class="field-label">LB (m²)</span><input type="number" id="f-lb" value="131" oninput="update()"/></div>
+          </div>
+
+          <div class="field-row" style="margin-bottom:8px">
+            <div class="field-wrap"><span class="field-label">Kamar Tidur</span><input type="number" id="f-bed" value="4" oninput="update()"/></div>
+            <div class="field-wrap"><span class="field-label">Kamar Mandi</span><input type="number" id="f-bath" placeholder="—" oninput="update()"/></div>
+          </div>
+
+          <div class="field-row" style="margin-bottom:8px">
+            <div class="field-wrap"><span class="field-label">Label harga</span><input type="text" id="f-pricelabel" value="Start" oninput="update()"/></div>
+            <div class="field-wrap"><span class="field-label">Harga</span><input type="text" id="f-price" value="2,5M" oninput="update()"/></div>
+          </div>
+
+          <div class="field-row full">
+            <div class="field-wrap">
+              <span class="field-label">Kawasan <span class="field-label-sub">(pill kiri atas)</span></span>
+              <input type="text" id="f-kawasan" value="KBP, Bandung" oninput="update()"/>
+            </div>
+          </div>
+
+          <button class="reset-btn" onclick="resetAll()">↺ Reset semua field</button>
+        </div>
+      </div>
+
+      <!-- FOTO -->
+      <div id="tab-foto" class="tab-content">
+        <div class="section">
+          <div class="section-label">Preset foto</div>
+          <div class="preset-grid">
+            <button class="preset-opt active" onclick="setPreset('natural',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#7a8a6a"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(0,0,0,0.72),rgba(0,0,0,0.1))"></div><div class="pth-text">Kynfolk<br><span style="color:#C9A96E">2,5M</span></div></div>
+              <div class="preset-name">Natural</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('moody',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#2a2a2a"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(0,0,0,0.9),rgba(10,10,20,0.35))"></div><div class="pth-text">Kynfolk<br><span style="color:#C9A96E">2,5M</span></div></div>
+              <div class="preset-name">Moody Dark</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('airy',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#b8c8c4"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(20,30,40,0.78),rgba(20,30,40,0.05))"></div><div class="pth-text">Kynfolk<br><span style="color:#C9A96E">2,5M</span></div></div>
+              <div class="preset-name">Airy & Clean</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('warm',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#a07848"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(40,20,0,0.88),rgba(40,20,0,0.15))"></div><div class="pth-text">Kynfolk<br><span style="color:#E8C98A">2,5M</span></div></div>
+              <div class="preset-name">Warm Sunset</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('cool',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#506070"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(10,20,40,0.9),rgba(10,20,40,0.2))"></div><div class="pth-text">Kynfolk<br><span style="color:#9EC5D8">2,5M</span></div></div>
+              <div class="preset-name">Cool Blue</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('minimal',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#c0beb8"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(28,26,23,0.92),rgba(28,26,23,0.08))"></div><div class="pth-text">Kynfolk<br><span style="color:#fff">2,5M</span></div></div>
+              <div class="preset-name">Minimal Grey</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('film',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#6a6050"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(28,22,12,0.92),rgba(28,22,12,0.25))"></div><div class="pth-text">Kynfolk<br><span style="color:#D4B483">2,5M</span></div></div>
+              <div class="preset-name">Film Matte</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('bw',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#787878"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(0,0,0,0.92),rgba(0,0,0,0.18))"></div><div class="pth-text">Kynfolk<br><span style="color:#fff">2,5M</span></div></div>
+              <div class="preset-name">B&W Classic</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('golden',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#b07830"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(60,28,0,0.94),rgba(60,28,0,0.2))"></div><div class="pth-text">Kynfolk<br><span style="color:#FFD98A">2,5M</span></div></div>
+              <div class="preset-name">Golden Hour</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('haze',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#ddd8ce"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(30,28,24,0.78),rgba(240,235,225,0.08))"></div><div class="pth-text">Kynfolk<br><span style="color:#C9A96E">2,5M</span></div></div>
+              <div class="preset-name">Haze</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('dusk',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#2a3a5a"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(10,8,40,0.96),rgba(30,60,80,0.3))"></div><div class="pth-text">Kynfolk<br><span style="color:#7ED4E6">2,5M</span></div></div>
+              <div class="preset-name">Dusk</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('amber',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#7a5030"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(50,24,0,0.95),rgba(80,40,10,0.3))"></div><div class="pth-text">Kynfolk<br><span style="color:#E8B46A">2,5M</span></div></div>
+              <div class="preset-name">Amber</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('overcast',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#a8aeb4"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(20,24,28,0.86),rgba(20,24,28,0.1))"></div><div class="pth-text">Kynfolk<br><span style="color:#ddd">2,5M</span></div></div>
+              <div class="preset-name">Overcast</div>
+            </button>
+            <button class="preset-opt" onclick="setPreset('stone',this)">
+              <div class="preset-thumb"><div class="pth-bg" style="background:#6a7880"></div><div class="pth-ov" style="background:linear-gradient(to top,rgba(14,22,28,0.92),rgba(14,22,28,0.18))"></div><div class="pth-text">Kynfolk<br><span style="color:#A8D8E8">2,5M</span></div></div>
+              <div class="preset-name">Stone</div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STYLE -->
+      <div id="tab-style" class="tab-content">
+        <div class="section">
+          <div class="section-label">Font brand</div>
+          <div class="font-grid">
+            <button class="font-opt active" onclick="setFont('cormorant',this)">
+              <div class="font-preview" style="font-family:'Cormorant Garamond';font-weight:600;font-style:italic">Kynfolk</div>
+              <div class="font-name">Cormorant Italic</div>
+            </button>
+            <button class="font-opt" onclick="setFont('playfair',this)">
+              <div class="font-preview" style="font-family:'Playfair Display';font-style:italic">Kynfolk</div>
+              <div class="font-name">Playfair Italic</div>
+            </button>
+            <button class="font-opt" onclick="setFont('dm',this)">
+              <div class="font-preview" style="font-family:'DM Serif Display';font-style:italic">Kynfolk</div>
+              <div class="font-name">DM Serif Italic</div>
+            </button>
+            <button class="font-opt" onclick="setFont('josefin',this)">
+              <div class="font-preview" style="font-family:'Josefin Sans';font-weight:300;letter-spacing:0.22em;font-size:13px">KYNFOLK</div>
+              <div class="font-name">Josefin Thin</div>
+            </button>
+            <button class="font-opt" onclick="setFont('baskerville',this)">
+              <div class="font-preview" style="font-family:'Libre Baskerville';font-style:italic;font-size:13px">Kynfolk</div>
+              <div class="font-name">Baskerville Italic</div>
+            </button>
+            <button class="font-opt" onclick="setFont('josefin-reg',this)">
+              <div class="font-preview" style="font-family:'Josefin Sans';font-weight:600;letter-spacing:0.18em;font-size:12px">KYNFOLK</div>
+              <div class="font-name">Josefin Semibold</div>
+            </button>
+          </div>
+        </div>
+
+        <hr class="sep"/>
+
+        <div class="section">
+          <div class="section-label">Tone warna aksen</div>
+          <div class="theme-grid">
+            <button class="theme-opt active" onclick="setTheme('#C9A96E',this)">
+              <div class="theme-swatch"><div class="theme-dot" style="background:#C9A96E"></div></div>
+              <div class="theme-label">Warm Gold</div>
+            </button>
+            <button class="theme-opt" onclick="setTheme('#E8E0D0',this)">
+              <div class="theme-swatch"><div class="theme-dot" style="background:#C8BFB0;border:1px solid #ddd"></div></div>
+              <div class="theme-label">Ivory</div>
+            </button>
+            <button class="theme-opt" onclick="setTheme('#A8B89A',this)">
+              <div class="theme-swatch"><div class="theme-dot" style="background:#A8B89A"></div></div>
+              <div class="theme-label">Sage</div>
+            </button>
+            <button class="theme-opt" onclick="setTheme('#C4956A',this)">
+              <div class="theme-swatch"><div class="theme-dot" style="background:#C4956A"></div></div>
+              <div class="theme-label">Terra</div>
+            </button>
+            <button class="theme-opt" onclick="setTheme('#B0A898',this)">
+              <div class="theme-swatch"><div class="theme-dot" style="background:#B0A898"></div></div>
+              <div class="theme-label">Stone</div>
+            </button>
+            <button class="theme-opt" onclick="setTheme('#C9A0A0',this)">
+              <div class="theme-swatch"><div class="theme-dot" style="background:#C9A0A0"></div></div>
+              <div class="theme-label">Blush</div>
+            </button>
+            <button class="theme-opt" onclick="setTheme('#9EC5D8',this)">
+              <div class="theme-swatch"><div class="theme-dot" style="background:#9EC5D8"></div></div>
+              <div class="theme-label">Mist Blue</div>
+            </button>
+            <button class="theme-opt" onclick="setTheme('#ffffff',this)">
+              <div class="theme-swatch"><div class="theme-dot" style="background:#fff;border:1px solid #ddd"></div></div>
+              <div class="theme-label">Pure White</div>
+            </button>
+          </div>
+        </div>
+
+        <hr class="sep"/>
+
+        <div class="section">
+          <div class="section-label">Aksen divider</div>
+          <div class="divider-grid">
+            <button class="divider-opt" onclick="setDivider('single',this)">
+              <div class="divider-preview">
+                <div style="width:28px;height:1px;background:rgba(255,255,255,0.8)"></div>
+              </div>
+              <div class="divider-opt-name">Single line</div>
+            </button>
+            <button class="divider-opt" onclick="setDivider('double',this)">
+              <div class="divider-preview">
+                <div style="display:flex;flex-direction:column;gap:3px">
+                  <div style="width:24px;height:0.5px;background:var(--text-2)"></div>
+                  <div style="width:24px;height:0.5px;background:var(--text-2)"></div>
+                </div>
+              </div>
+              <div class="divider-opt-name">Double line</div>
+            </button>
+            <button class="divider-opt" onclick="setDivider('fade',this)">
+              <div class="divider-preview">
+                <div style="width:40px;height:1px;background:linear-gradient(to right,var(--text-2),transparent)"></div>
+              </div>
+              <div class="divider-opt-name">Fade out</div>
+            </button>
+            <button class="divider-opt" onclick="setDivider('dotline',this)">
+              <div class="divider-preview">
+                <div style="display:flex;align-items:center;gap:4px">
+                  <div style="width:3px;height:3px;border-radius:50%;background:var(--text-2)"></div>
+                  <div style="width:18px;height:0.5px;background:var(--text-2);opacity:0.6"></div>
+                  <div style="width:3px;height:3px;border-radius:50%;background:var(--text-2)"></div>
+                </div>
+              </div>
+              <div class="divider-opt-name">Dot · line · dot</div>
+            </button>
+            <button class="divider-opt" onclick="setDivider('bracket',this)">
+              <div class="divider-preview">
+                <div style="width:20px;height:8px;border-left:1.5px solid var(--text-2);border-bottom:1.5px solid var(--text-2)"></div>
+              </div>
+              <div class="divider-opt-name">Corner mark</div>
+            </button>
+            <button class="divider-opt active" onclick="setDivider('none',this)">
+              <div class="divider-preview">
+                <div style="font-size:10px;color:var(--text-3);letter-spacing:0.1em">—</div>
+              </div>
+              <div class="divider-opt-name">Tanpa aksen</div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- LAYOUT -->
+      <div id="tab-layout" class="tab-content">
+        <div class="section">
+          <div class="section-label">Posisi info listing</div>
+          <div class="pos-grid" id="info-pos-grid">
+            <button class="pos-btn" onclick="setInfoPos('top-left',this)">↖ Kiri Atas</button>
+            <button class="pos-btn" onclick="setInfoPos('top-center',this)">↑ Tengah Atas</button>
+            <button class="pos-btn" onclick="setInfoPos('top-right',this)">↗ Kanan Atas</button>
+            <button class="pos-btn" onclick="setInfoPos('mid-left',this)">← Kiri Tengah</button>
+            <button class="pos-btn" onclick="setInfoPos('mid-center',this)">· Tengah</button>
+            <button class="pos-btn" onclick="setInfoPos('mid-right',this)">→ Kanan Tengah</button>
+            <button class="pos-btn" onclick="setInfoPos('bot-left',this)">↙ Kiri Bawah</button>
+            <button class="pos-btn active" onclick="setInfoPos('bot-center',this)">↓ Tengah Bawah</button>
+            <button class="pos-btn" onclick="setInfoPos('bot-right',this)">↘ Kanan Bawah</button>
+          </div>
+        </div>
+
+        <hr class="sep"/>
+
+        <div class="section">
+          <div class="section-label">Posisi brand mark</div>
+          <div class="pos-grid" id="brand-pos-grid">
+            <button class="pos-btn" onclick="setBrandPos('top-left',this)">↖ Kiri Atas</button>
+            <button class="pos-btn active" onclick="setBrandPos('top-center',this)">↑ Tengah Atas</button>
+            <button class="pos-btn" onclick="setBrandPos('top-right',this)">↗ Kanan Atas</button>
+            <button class="pos-btn" onclick="setBrandPos('mid-left',this)">← Kiri Tengah</button>
+            <button class="pos-btn" onclick="setBrandPos('mid-center',this)">· Tengah</button>
+            <button class="pos-btn" onclick="setBrandPos('mid-right',this)">→ Kanan Tengah</button>
+            <button class="pos-btn" onclick="setBrandPos('bot-left',this)">↙ Kiri Bawah</button>
+            <button class="pos-btn" onclick="setBrandPos('bot-center',this)">↓ Tengah Bawah</button>
+            <button class="pos-btn" onclick="setBrandPos('bot-right',this)">↘ Kanan Bawah</button>
+          </div>
+        </div>
+
+        <hr class="sep"/>
+
+        <div class="section">
+          <div class="section-label">Posisi info kawasan</div>
+          <div class="pos-grid" id="kawasan-pos-grid">
+            <button class="pos-btn active" onclick="setKawasanPos('top-left',this)">↖ Kiri Atas</button>
+            <button class="pos-btn" onclick="setKawasanPos('top-center',this)">↑ Tengah Atas</button>
+            <button class="pos-btn" onclick="setKawasanPos('top-right',this)">↗ Kanan Atas</button>
+            <button class="pos-btn" onclick="setKawasanPos('mid-left',this)">← Kiri Tengah</button>
+            <button class="pos-btn" onclick="setKawasanPos('mid-center',this)">· Tengah</button>
+            <button class="pos-btn" onclick="setKawasanPos('mid-right',this)">→ Kanan Tengah</button>
+            <button class="pos-btn" onclick="setKawasanPos('bot-left',this)">↙ Kiri Bawah</button>
+            <button class="pos-btn" onclick="setKawasanPos('bot-center',this)">↓ Tengah Bawah</button>
+            <button class="pos-btn" onclick="setKawasanPos('bot-right',this)">↘ Kanan Bawah</button>
+          </div>
+        </div>
+
+        <hr class="sep"/>
+
+        <div class="section" style="margin-bottom:0">
+          <div class="section-label">Ukuran brand</div>
+          <div class="size-control">
+            <button class="size-btn" onclick="changeBrandSize(-1)">−</button>
+            <span class="size-val" id="brand-size-val">16px</span>
+            <button class="size-btn" onclick="changeBrandSize(1)">+</button>
+          </div>
+        </div>
+
+        <hr class="sep"/>
+
+        <div class="section" style="margin-bottom:0">
+          <div class="section-label">Opacity brand mark</div>
+          <div class="slider-row">
+            <input type="range" id="brand-opacity-slider" min="10" max="100" value="85" oninput="setBrandOpacity(this.value)"/>
+            <span class="slider-val" id="brand-opacity-val">85%</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /panel-body -->
+
+    <div class="panel-footer">
+      <button class="download-btn" onclick="downloadImage()">Download Gambar</button>
+    </div>
+
+  </div><!-- /panel -->
+
+</div><!-- /app -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+const PAD = 22;
+let infoPos='bot-center', brandPos='top-center', kawasanPos='top-left', brandSize=16;
+let accentColor='#C9A96E', currentRatio='45', currentFont='cormorant';
+
+const presets={
+  natural:{filter:'brightness(0.95) saturate(1.05) contrast(1.02)',overlay:'linear-gradient(to top,rgba(0,0,0,0.88) 0%,rgba(0,0,0,0.62) 40%,transparent 100%)'},
+  moody:  {filter:'brightness(0.78) saturate(0.65) contrast(1.12)',overlay:'linear-gradient(to top,rgba(0,0,0,0.96) 0%,rgba(8,8,18,0.72) 45%,rgba(8,8,18,0.1) 100%)'},
+  airy:   {filter:'brightness(1.08) saturate(0.82) contrast(0.94)',overlay:'linear-gradient(to top,rgba(18,28,38,0.84) 0%,rgba(18,28,38,0.38) 45%,transparent 100%)'},
+  warm:   {filter:'brightness(1.02) saturate(1.22) contrast(1.0) sepia(0.2)',overlay:'linear-gradient(to top,rgba(40,18,0,0.92) 0%,rgba(40,18,0,0.48) 45%,transparent 100%)'},
+  cool:   {filter:'brightness(0.88) saturate(0.78) contrast(1.06) hue-rotate(14deg)',overlay:'linear-gradient(to top,rgba(8,18,40,0.94) 0%,rgba(8,18,40,0.52) 45%,transparent 100%)'},
+  minimal:{filter:'brightness(0.96) saturate(0.55) contrast(1.1)',overlay:'linear-gradient(to top,rgba(28,26,22,0.94) 0%,rgba(28,26,22,0.52) 45%,transparent 100%)'},
+  film:   {filter:'brightness(0.86) saturate(0.72) contrast(1.14) sepia(0.14)',overlay:'linear-gradient(to top,rgba(28,22,10,0.94) 0%,rgba(28,22,10,0.52) 45%,transparent 100%)'},
+  bw:     {filter:'grayscale(1) brightness(0.88) contrast(1.12)',overlay:'linear-gradient(to top,rgba(0,0,0,0.95) 0%,rgba(0,0,0,0.52) 45%,transparent 100%)'},
+  golden: {filter:'brightness(1.04) saturate(1.35) contrast(1.06) sepia(0.32)',overlay:'linear-gradient(to top,rgba(60,28,0,0.94) 0%,rgba(60,28,0,0.48) 45%,transparent 100%)'},
+  haze:   {filter:'brightness(1.18) saturate(0.6) contrast(0.88)',overlay:'linear-gradient(to top,rgba(30,28,24,0.82) 0%,rgba(30,28,24,0.28) 50%,transparent 100%)'},
+  dusk:   {filter:'brightness(0.82) saturate(0.88) contrast(1.08) hue-rotate(200deg)',overlay:'linear-gradient(to top,rgba(10,8,40,0.96) 0%,rgba(30,60,80,0.42) 50%,transparent 100%)'},
+  amber:  {filter:'brightness(0.84) saturate(0.9) contrast(1.12) sepia(0.42)',overlay:'linear-gradient(to top,rgba(50,24,0,0.95) 0%,rgba(60,30,5,0.5) 45%,transparent 100%)'},
+  overcast:{filter:'brightness(1.06) saturate(0.48) contrast(0.92)',overlay:'linear-gradient(to top,rgba(20,24,28,0.9) 0%,rgba(20,24,28,0.4) 48%,transparent 100%)'},
+  stone:  {filter:'brightness(0.9) saturate(0.62) contrast(1.08) hue-rotate(175deg)',overlay:'linear-gradient(to top,rgba(14,22,28,0.94) 0%,rgba(14,22,28,0.44) 46%,transparent 100%)'},
+};
+
+const fontMap={
+  'cormorant':  {family:'Cormorant Garamond',italic:true, weight:'600',tracking:'0.1em', caps:false},
+  'playfair':   {family:'Playfair Display',  italic:true, weight:'400',tracking:'0.06em',caps:false},
+  'dm':         {family:'DM Serif Display',  italic:true, weight:'400',tracking:'0.06em',caps:false},
+  'josefin':    {family:'Josefin Sans',      italic:false,weight:'300',tracking:'0.28em',caps:true },
+  'baskerville':{family:'Libre Baskerville', italic:true, weight:'400',tracking:'0.08em',caps:false},
+  'josefin-reg':{family:'Josefin Sans',      italic:false,weight:'600',tracking:'0.2em', caps:true },
+};
+
+// ── CAROUSEL ──
+let photos = [];       // array of { src, tx, ty, scale }
+let currentPhoto = 0;  // index aktif
+
+function renderCarousel() {
+  const strip = document.getElementById('carousel-strip');
+  const nav   = document.getElementById('carousel-nav');
+  strip.innerHTML = '';
+
+  if (photos.length === 0) {
+    nav.style.display = 'none';
+    document.getElementById('zoom-row').style.display = 'none';
+    document.getElementById('drag-hint').style.display = 'none';
+    return;
+  }
+
+  photos.forEach((src, i) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'carousel-thumb' + (i === currentPhoto ? ' active' : '');
+    thumb.onclick = () => { currentPhoto = i; applyCurrentPhoto(); renderCarousel(); };
+
+    const img = document.createElement('img');
+    img.src = src.src;
+    thumb.appendChild(img);
+
+    const num = document.createElement('span');
+    num.className = 'thumb-num';
+    num.textContent = i + 1;
+    thumb.appendChild(num);
+
+    const del = document.createElement('button');
+    del.className = 'thumb-del';
+    del.textContent = '×';
+    del.onclick = (e) => { e.stopPropagation(); removePhoto(i); };
+    thumb.appendChild(del);
+
+    strip.appendChild(thumb);
+  });
+
+  nav.style.display = 'flex';
+  document.getElementById('carousel-counter').textContent = `${currentPhoto + 1} / ${photos.length}`;
+  document.getElementById('nav-prev').disabled = currentPhoto === 0;
+  document.getElementById('nav-next').disabled = currentPhoto === photos.length - 1;
+
+  // sync zoom + drag UI to current photo
+  const cur = photos[currentPhoto];
+  document.getElementById('zoom-row').style.display = 'flex';
+  document.getElementById('drag-hint').style.display = 'block';
+  document.getElementById('zoom-slider').value = Math.round(cur.scale * 100);
+}
+
+function applyCurrentPhoto() {
+  if (photos.length === 0) return;
+  const p = photos[currentPhoto];
+  const img = document.getElementById('bg-photo');
+  img.src = p.src;
+  applyPhotoTransform();
+  document.getElementById('canvas-wrap').classList.add('draggable');
+}
+
+function applyPhotoTransform() {
+  if (photos.length === 0) return;
+  const p = photos[currentPhoto];
+  const img = document.getElementById('bg-photo');
+  img.style.transform = `translate(${p.tx}px, ${p.ty}px) scale(${p.scale})`;
+  img.style.transition = 'none';
+}
+
+function setPhotoZoom(val) {
+  if (photos.length === 0) return;
+  photos[currentPhoto].scale = val / 100;
+  applyPhotoTransform();
+}
+
+function resetPhotoTransform() {
+  if (photos.length === 0) return;
+  photos[currentPhoto].tx = 0;
+  photos[currentPhoto].ty = 0;
+  photos[currentPhoto].scale = 1;
+  document.getElementById('zoom-slider').value = 100;
+  applyPhotoTransform();
+}
+
+function carouselNav(dir) {
+  currentPhoto = Math.max(0, Math.min(photos.length - 1, currentPhoto + dir));
+  applyCurrentPhoto();
+  renderCarousel();
+}
+
+function removePhoto(i) {
+  photos.splice(i, 1);
+  if (currentPhoto >= photos.length) currentPhoto = Math.max(0, photos.length - 1);
+  applyCurrentPhoto();
+  renderCarousel();
+}
+
+async function exportAll() {
+  if (photos.length === 0) return;
+  const btn = document.getElementById('export-all-btn');
+  btn.disabled = true;
+
+  const wrap   = document.getElementById('canvas-wrap');
+  const scaler = document.getElementById('canvas-scaler');
+  const c      = CANVAS[currentRatio];
+  const ex     = EXPORT[currentRatio];
+  const label  = {'916':'9x16','45':'4x5','34':'3x4','11':'1x1','169':'16x9'}[currentRatio];
+  const exportScale = ex[0] / c.w; // exact ratio — preserves target dimensions
+  const bgPhoto = document.getElementById('bg-photo');
+
+  const prevTransform = scaler.style.transform;
+  const prevRadius    = wrap.style.borderRadius;
+  scaler.style.transform  = 'scale(1)';
+  scaler.style.transition = 'none';
+  wrap.style.borderRadius = '0';
+
+  for (let i = 0; i < photos.length; i++) {
+    btn.textContent = `Export ${i+1}/${photos.length}...`;
+    bgPhoto.src = photos[i].src;
+    bgPhoto.style.transform = `translate(${photos[i].tx}px, ${photos[i].ty}px) scale(${photos[i].scale})`;
+    await new Promise(r => setTimeout(r, 120));
+
+    const canvas = await html2canvas(wrap, {
+      scale: exportScale, useCORS: true, allowTaint: true,
+      logging: false, backgroundColor: null, width: c.w, height: c.h,
+    });
+
+    const link = document.createElement('a');
+    link.download = `kynfolk-${label}-${String(i+1).padStart(2,'0')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  // restore
+  scaler.style.transition = '';
+  scaler.style.transform  = prevTransform;
+  wrap.style.borderRadius = prevRadius;
+  bgPhoto.src = (photos[currentPhoto] && photos[currentPhoto].src) || bgPhoto.src;
+  applyPhotoTransform();
+  btn.disabled = false;
+  btn.textContent = 'Export Semua';
+}
+
+// ── WATERMARK OPACITY ──
+let brandOpacity = 0.85;
+
+function setBrandOpacity(val) {
+  brandOpacity = val / 100;
+  document.getElementById('brand-mark').style.color = `rgba(255,255,255,${brandOpacity})`;
+  document.getElementById('brand-opacity-val').textContent = val + '%';
+}
+
+// ── RESET ──
+function resetAll() {
+  if (!confirm('Reset semua field dan foto?')) return;
+
+  // fields
+  document.getElementById('f-name').value      = '';
+  document.getElementById('f-loc').value        = '';
+  document.getElementById('f-lt').value         = '';
+  document.getElementById('f-lb').value         = '';
+  document.getElementById('f-bed').value        = '';
+  document.getElementById('f-bath').value       = '';
+  document.getElementById('f-price').value      = '';
+  document.getElementById('f-pricelabel').value = '';
+  document.getElementById('f-kawasan').value    = '';
+  update();
+
+  // photos
+  photos = []; currentPhoto = 0;
+  const ph = document.getElementById('bg-photo');
+  ph.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='500'%3E%3Crect width='400' height='500' fill='%23E8E4DE'/%3E%3Ctext x='200' y='248' text-anchor='middle' fill='%23B8AFA5' font-size='12' font-family='sans-serif'%3EUpload foto properti%3C%2Ftext%3E%3C%2Fsvg%3E`;
+  ph.style.transform = '';
+  document.getElementById('canvas-wrap').classList.remove('draggable');
+  renderCarousel();
+}
+
+
+const CANVAS = {
+  '916': { w: 400, h: 711 },  // 9:16
+  '45':  { w: 400, h: 500 },  // 4:5
+  '34':  { w: 400, h: 533 },  // 3:4 (TikTok)
+  '11':  { w: 400, h: 400 },  // 1:1
+  '169': { w: 400, h: 225 },  // 16:9
+};
+const EXPORT = {
+  '916': [1080, 1920],
+  '45':  [1080, 1350],
+  '34':  [1080, 1440],
+  '11':  [1080, 1080],
+  '169': [1920, 1080],
+};
+
+function setRatio(key, btn) {
+  currentRatio = key;
+  document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const c = CANVAS[key];
+  const wrap = document.getElementById('canvas-wrap');
+
+  // Set the canonical pixel size once
+  wrap.style.width  = c.w + 'px';
+  wrap.style.height = c.h + 'px';
+
+  // Compute scale to fit the canvas-area
+  const area   = document.querySelector('.canvas-area');
+  const maxW   = Math.max(120, area.offsetWidth  - 32);
+  const maxH   = Math.max(120, area.offsetHeight - 32);
+  const scale  = Math.min(maxW / c.w, maxH / c.h, 1);
+
+  // Apply scale on the scaler wrapper — smooth CSS transition handles the rest
+  const scaler = document.getElementById('canvas-scaler');
+  scaler.style.width  = c.w + 'px';
+  scaler.style.height = c.h + 'px';
+  scaler.style.transform = `scale(${scale})`;
+
+  // Reposition overlay elements — applyPos depends on CANVAS[currentRatio]
+  if (typeof repositionAll === "function") repositionAll();
+}
+
+function repositionAll() {
+  applyPos(document.getElementById('info-block'), infoPos, true);
+  applyPos(document.getElementById('brand-mark'), brandPos, false);
+  applyPos(document.getElementById('loc-pill'), kawasanPos, false);
+}
+
+function setPreset(key,btn){
+  document.querySelectorAll('.preset-opt').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const p=presets[key];
+  document.getElementById('bg-photo').style.filter=p.filter;
+  document.getElementById('overlay-bottom').style.background=p.overlay;
+}
+
+function setFont(key,btn){
+  currentFont=key;
+  document.querySelectorAll('.font-opt').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  applyBrandStyle();
+  setTimeout(()=>applyPos(document.getElementById('brand-mark'),brandPos,false),30);
+}
+
+function applyBrandStyle(){
+  const f=fontMap[currentFont];
+  const el=document.getElementById('brand-mark');
+  el.style.fontFamily=f.family;
+  el.style.fontStyle=f.italic?'italic':'normal';
+  el.style.fontWeight=f.weight;
+  el.style.letterSpacing=f.tracking;
+  el.style.fontSize=brandSize+'px';
+  el.style.textTransform=f.caps?'uppercase':'none';
+  el.textContent=f.caps?'KYNFOLK':'Kynfolk';
+}
+
+function setTheme(color,btn){
+  accentColor=color;
+  document.querySelectorAll('.theme-opt').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('preview-price').style.color=color;
+  renderDivider();
+}
+
+let currentDivider = 'none';
+
+function setDivider(key, btn) {
+  currentDivider = key;
+  document.querySelectorAll('.divider-opt').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDivider();
+}
+
+function renderDivider() {
+  const el = document.getElementById('preview-divider');
+  const c = accentColor;
+
+  // Reset all inline styles first
+  el.removeAttribute('style');
+  el.innerHTML = '';
+
+  if (currentDivider === 'none') {
+    el.style.display = 'none';
+    return;
+  }
+
+  el.style.display = 'flex';
+  el.style.alignItems = 'center';
+  el.style.marginBottom = '13px';
+
+  if (currentDivider === 'single') {
+    el.style.width = '28px';
+    el.style.height = '1px';
+    el.style.background = c;
+  } else if (currentDivider === 'double') {
+    el.style.width = '24px';
+    el.style.flexDirection = 'column';
+    el.style.gap = '3px';
+    el.style.height = 'auto';
+    el.innerHTML = `<div style="width:100%;height:0.5px;background:${c}"></div><div style="width:100%;height:0.5px;background:${c}"></div>`;
+  } else if (currentDivider === 'fade') {
+    el.style.width = '48px';
+    el.style.height = '1px';
+    el.style.background = `linear-gradient(to right, ${c}, transparent)`;
+  } else if (currentDivider === 'dotline') {
+    el.style.height = 'auto';
+    el.style.gap = '5px';
+    el.innerHTML = `<div style="width:4px;height:4px;border-radius:50%;background:${c};flex-shrink:0"></div><div style="width:20px;height:0.5px;background:${c};opacity:0.55"></div><div style="width:4px;height:4px;border-radius:50%;background:${c};flex-shrink:0"></div>`;
+  } else if (currentDivider === 'bracket') {
+    el.style.width = '18px';
+    el.style.height = '10px';
+    el.style.borderLeft = `1.5px solid ${c}`;
+    el.style.borderBottom = `1.5px solid ${c}`;
+    el.style.marginBottom = '10px';
+  }
+}
+
+
+function switchTab(t,btn){
+  document.querySelectorAll('.panel-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  btn.classList.add('active');
+}
+
+document.getElementById('file-input').addEventListener('change', e => {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+
+  let loaded = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      photos.push({ src: ev.target.result, tx: 0, ty: 0, scale: 1 });
+      loaded++;
+      if (loaded === files.length) {
+        currentPhoto = photos.length - files.length; // jump ke foto pertama yang baru
+        applyCurrentPhoto();
+        renderCarousel();
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value = ''; // allow re-upload same file
+});
+
+// ── DRAG TO REPOSITION IMAGE ──
+(function initDrag(){
+  const wrap = document.getElementById('canvas-wrap');
+  let dragging = false, startX = 0, startY = 0, startTx = 0, startTy = 0, scaleFactor = 1;
+
+  function onDown(e){
+    if (photos.length === 0) return;
+    const pt = e.touches ? e.touches[0] : e;
+    dragging = true;
+    wrap.classList.add('dragging');
+    startX = pt.clientX; startY = pt.clientY;
+    startTx = photos[currentPhoto].tx;
+    startTy = photos[currentPhoto].ty;
+    // Adjust delta by current display scale of canvas-scaler
+    const scaler = document.getElementById('canvas-scaler');
+    const m = scaler.style.transform.match(/scale\(([\d.]+)\)/);
+    scaleFactor = m ? parseFloat(m[1]) : 1;
+    if (e.cancelable) e.preventDefault();
+  }
+  function onMove(e){
+    if (!dragging) return;
+    const pt = e.touches ? e.touches[0] : e;
+    const dx = (pt.clientX - startX) / scaleFactor;
+    const dy = (pt.clientY - startY) / scaleFactor;
+    photos[currentPhoto].tx = startTx + dx;
+    photos[currentPhoto].ty = startTy + dy;
+    applyPhotoTransform();
+    if (e.cancelable) e.preventDefault();
+  }
+  function onUp(){
+    if (!dragging) return;
+    dragging = false;
+    wrap.classList.remove('dragging');
+  }
+
+  wrap.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  wrap.addEventListener('touchstart', onDown, { passive: false });
+  window.addEventListener('touchmove', onMove, { passive: false });
+  window.addEventListener('touchend', onUp);
+})();
+
+function applyPos(el,pos,isBlock){
+  // Always use canonical canvas size — never read offsetWidth which may be scaled
+  const c=CANVAS[currentRatio];
+  const W=c.w, H=c.h;
+  const[vert,horiz]=pos.split('-');
+  const top=vert==='top'?PAD:vert==='mid'?H/2:H-PAD;
+  const left=horiz==='left'?PAD:horiz==='center'?W/2:W-PAD;
+  const tx=horiz==='center'?-50:horiz==='right'?-100:0;
+  const ty=vert==='mid'?-50:vert==='bot'?-100:0;
+  el.style.top=top+'px';el.style.left=left+'px';
+  el.style.transform=`translate(${tx}%,${ty}%)`;
+  if(isBlock){
+    el.style.textAlign=horiz==='left'?'left':horiz==='center'?'center':'right';
+    const div=document.getElementById('preview-divider');
+    const pr=document.getElementById('price-row');
+    if(horiz==='center'){if(div.style.display!=='none')div.style.margin='12px auto';pr.style.justifyContent='center'}
+    else if(horiz==='right'){if(div.style.display!=='none'){div.style.marginLeft='auto';div.style.marginRight='0';}pr.style.justifyContent='flex-end'}
+    else{if(div.style.display!=='none'){div.style.marginLeft='0';div.style.marginRight='auto';}pr.style.justifyContent='flex-start'}
+  }
+}
+
+function setInfoPos(pos,btn){
+  infoPos=pos;
+  document.querySelectorAll('#info-pos-grid .pos-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  applyPos(document.getElementById('info-block'),pos,true);
+}
+
+function setBrandPos(pos,btn){
+  brandPos=pos;
+  document.querySelectorAll('#brand-pos-grid .pos-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  applyPos(document.getElementById('brand-mark'),pos,false);
+}
+
+function setKawasanPos(pos,btn){
+  kawasanPos=pos;
+  document.querySelectorAll('#kawasan-pos-grid .pos-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  applyPos(document.getElementById('loc-pill'),pos,false);
+}
+
+function changeBrandSize(d){
+  brandSize=Math.max(10,Math.min(32,brandSize+d));
+  document.getElementById('brand-size-val').textContent=brandSize+'px';
+  applyBrandStyle();
+  setTimeout(()=>applyPos(document.getElementById('brand-mark'),brandPos,false),30);
+}
+
+function update(){
+  const name=document.getElementById('f-name').value||'';
+  const lt=document.getElementById('f-lt').value;
+  const lb=document.getElementById('f-lb').value;
+  const bed=document.getElementById('f-bed').value;
+  const bath=document.getElementById('f-bath').value;
+  const price=document.getElementById('f-price').value;
+  const pricelabel=document.getElementById('f-pricelabel').value;
+  const kawasan=document.getElementById('f-kawasan').value;
+  const loc=document.getElementById('f-loc').value;
+
+  const nameEl=document.getElementById('preview-name');
+  nameEl.textContent=name.toUpperCase();
+  nameEl.style.display=name?'block':'none';
+
+  const priceRow=document.getElementById('price-row');
+  if(price){
+    document.getElementById('preview-price').textContent=price;
+    document.getElementById('preview-price').style.color=accentColor;
+    document.getElementById('preview-pricelabel').textContent=pricelabel;
+    priceRow.style.display='flex';
+  } else {
+    priceRow.style.display='none';
+  }
+
+  // Row 1: ukuran tanah & bangunan
+  let sizeRow='';
+  if(lt) sizeRow+=`LT. ${lt}M²`;
+  if(lb) sizeRow+=(sizeRow?'  |  ':'')+`LB. ${lb}M²`;
+  const sizeEl=document.getElementById('preview-specs-size');
+  sizeEl.textContent=sizeRow;
+  sizeEl.style.display=sizeRow?'block':'none';
+
+  // Row 2: kamar tidur & kamar mandi
+  let roomRow='';
+  if(bed)  roomRow+=`BED ${bed}`;
+  if(bath) roomRow+=(roomRow?'  |  ':'')+`BATH ${bath}`;
+  const roomEl=document.getElementById('preview-specs-room');
+  roomEl.textContent=roomRow;
+  roomEl.style.display=roomRow?'block':'none';
+
+  const ln=document.getElementById('preview-locnote');
+  if(loc){ln.textContent=loc;ln.style.display='block'}else{ln.style.display='none'}
+  const pill=document.getElementById('loc-pill');
+  pill.textContent=kawasan;pill.style.display=kawasan?'block':'none';
+}
+
+async function downloadImage(){
+  const wrap   = document.getElementById('canvas-wrap');
+  const scaler = document.getElementById('canvas-scaler');
+  const c      = CANVAS[currentRatio];
+  const ex     = EXPORT[currentRatio];
+
+  // Temporarily remove scale so html2canvas captures at canonical size
+  const prevTransform = scaler.style.transform;
+  scaler.style.transform = 'scale(1)';
+  scaler.style.transition = 'none';
+
+  // Remove rounded corners during export so the PNG has no white corner remnants
+  const prevRadius = wrap.style.borderRadius;
+  wrap.style.borderRadius = '0';
+
+  await new Promise(r => setTimeout(r, 50)); // let paint settle
+
+  const exportScale = ex[0] / c.w; // exact ratio — preserves target dimensions
+  const canvas = await html2canvas(wrap, {
+    scale: exportScale,
+    useCORS: true,
+    allowTaint: true,
+    logging: false,
+    backgroundColor: null,
+    width: c.w,
+    height: c.h,
+  });
+
+  // Restore scale with transition
+  scaler.style.transition = '';
+  scaler.style.transform  = prevTransform;
+  wrap.style.borderRadius = prevRadius;
+
+  const label = {'916':'9x16','45':'4x5','34':'3x4','11':'1x1','169':'16x9'}[currentRatio];
+  const link  = document.createElement('a');
+  link.download = `kynfolk-${label}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+window.addEventListener('load',()=>{
+  setTimeout(()=>{
+    // Init canvas at 4:5 canonical size
+    setRatio('45', document.querySelector('.ratio-btn.active'));
+    applyBrandStyle();
+    repositionAll();
+    document.getElementById('preview-price').style.color=accentColor;
+    setPreset('natural',document.querySelector('.preset-opt.active'));
+    renderDivider();
+  },120);
+});
+window.addEventListener('resize', () => {
+  const activeBtn = document.querySelector('.ratio-btn.active');
+  if (activeBtn) setRatio(currentRatio, activeBtn);
+});
+update();
+</script>
+</body>
+</html>
